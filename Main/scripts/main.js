@@ -3,10 +3,48 @@ const STORAGE_KEY = 'serverstats_machines_v1';
 const POLL_INTERVAL = 5000; // ms
 const HISTORY_MAX = 20;
 
+function parseBind(input){
+  if (!input) return null;
+  const s = String(input).trim();
+  // bracketed IPv6 like [::1]:3002
+  const ipv6Match = s.match(/^\[([^\]]+)\]:(\d+)$/);
+  if (ipv6Match) return { host: ipv6Match[1], port: parseInt(ipv6Match[2], 10) };
+  const lastColon = s.lastIndexOf(':');
+  if (lastColon > 0 && s.indexOf(':') === lastColon) {
+    // host:port (IPv4 or hostname)
+    const hostPart = s.slice(0, lastColon);
+    const portPart = parseInt(s.slice(lastColon + 1), 10);
+    if (!portPart || portPart < 1 || portPart > 65535) return null;
+    return { host: hostPart || 'localhost', port: portPart };
+  }
+  // only a port provided
+  const portOnly = parseInt(s.replace(/[^0-9]/g, ''), 10);
+  if (!portOnly || portOnly < 1 || portOnly > 65535) return null;
+  return { host: 'localhost', port: portOnly };
+}
+
+function bindToUrl(host, port){
+  const hostPart = (host && host.includes(':') && !host.startsWith('[')) ? `[${host}]` : host;
+  return `http://${hostPart}:${port}/api/machine`;
+}
+
 function loadMachines(){
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    // migrate older formats to {host,port,name}
+    return list.map(item => {
+      if (!item) return null;
+      if (typeof item === 'string' || typeof item === 'number') {
+        const parsed = parseBind(String(item));
+        if (!parsed) return null;
+        return { host: parsed.host, port: parsed.port, name: '' };
+      }
+      if (item && typeof item.port === 'number' && !item.host) {
+        return { host: 'localhost', port: item.port, name: item.name || '' };
+      }
+      return { host: item.host || 'localhost', port: item.port, name: item.name || '' };
+    }).filter(Boolean);
   } catch(e){
     console.error('Failed to load machines', e);
     return [];
@@ -15,29 +53,23 @@ function loadMachines(){
 
 function saveMachines(list){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
-
-function sanitizePort(input){
-  if (!input) return null;
-  const trimmed = String(input).trim();
-  const port = parseInt(trimmed.replace(/[^0-9]/g,''),10);
-  if (!port || port < 1 || port > 65535) return null;
-  return port;
-}
+} 
 
 function createMachineElement(m){
   const card = document.createElement('div');
   card.className = 'card';
+  card.dataset.host = m.host;
   card.dataset.port = m.port;
 
   const head = document.createElement('div');
   head.className = 'head';
   const title = document.createElement('div');
   title.className = 'title';
-  title.textContent = m.name || `localhost:${m.port}`;
+  title.textContent = m.name || `${m.host}:${m.port}`;
   const addr = document.createElement('div');
   addr.className = 'small';
-  addr.textContent = `localhost:${m.port}/api/machine`;
+  const hostDisplay = (m.host && m.host.includes(':') && !m.host.startsWith('[')) ? `[${m.host}]` : m.host;
+  addr.textContent = `${hostDisplay}:${m.port}/api/machine`;
 
   const status = document.createElement('div');
   status.className = 'status small';
@@ -48,8 +80,8 @@ function createMachineElement(m){
   const remBtn = document.createElement('button');
   remBtn.title = 'Remove machine';
   remBtn.textContent = 'Remove';
-  remBtn.onclick = () => removeMachine(m.port);
-  actions.appendChild(remBtn);
+  remBtn.onclick = () => removeMachine(m.host, m.port);
+  actions.appendChild(remBtn); 
 
   head.appendChild(title);
   head.appendChild(status);
@@ -156,31 +188,33 @@ function renderMachines(){
   });
 }
 
-function addMachine(port, name){
-  const p = sanitizePort(port);
-  if (!p){ alert('Invalid port'); return; }
-  if (machines.find(x => x.port === p)) { alert('Port already added'); return; }
-  machines.push({port: p, name: name || ''});
+function addMachine(bindInput, name){
+  const parsed = parseBind(bindInput);
+  if (!parsed){ alert('Invalid port or host:port'); return; }
+  const { host, port } = parsed;
+  if (machines.find(x => x.host === host && x.port === port)) { alert('Already added'); return; }
+  machines.push({host, port, name: name || ''});
   saveMachines(machines);
   renderMachines();
-}
+} 
 
-function removeMachine(port){
+function removeMachine(host, port){
   // destroy chart if present
-  const node = document.querySelector(`[data-port="${port}"]`);
+  const node = document.querySelector(`[data-host="${host}"][data-port="${port}"]`);
   if (node && node._chart) node._chart.destroy();
 
-  machines = machines.filter(m => m.port !== port);
+  machines = machines.filter(m => !(m.host === host && String(m.port) === String(port)));
   saveMachines(machines);
   renderMachines();
-}
+} 
 
 // polling
-async function fetchMachine(port, timeout = 3000){
+async function fetchMachine(host, port, timeout = 3000){
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(`http://localhost:${port}/api/machine`, { signal: controller.signal });
+    const url = bindToUrl(host, port);
+    const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
@@ -188,17 +222,18 @@ async function fetchMachine(port, timeout = 3000){
     clearTimeout(timer);
     throw err;
   }
-}
+} 
 
 async function pollOnce(){
   const items = document.querySelectorAll('.card');
   items.forEach(async node => {
+    const host = node.dataset.host;
     const port = node.dataset.port;
     const statusNode = node._statusNode;
     const metricsNode = node._metricsNode;
 
     try {
-      const data = await fetchMachine(port, 4000);
+      const data = await fetchMachine(host, port, 4000);
       const cpu = data.cpuUsage || {};
       const mem = data.memoryUsage || {};
       const disk = data.diskUsage || {};

@@ -19,9 +19,9 @@ except ImportError as e:
 # ---------------- CONFIG ---------------- #
 
 DOWNLOAD_URLS = {
-    "Windows": "https://example.com/windows-file.js",
-    "Linux": "https://example.com/linux-file.js",
-    "Darwin": "https://example.com/mac-file.js",
+    "Windows": "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/serverwindows.js",
+    "Linux": "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/serverlinux.js",
+    "Darwin": "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/servermac.js",
 }
 
 FILE_NAME = "server.js"

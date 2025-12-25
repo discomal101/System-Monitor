@@ -4,10 +4,11 @@ const si = require('systeminformation');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
+const os = require('os');
 
 const PORT = 3000;
 
-if (os.platform() !== 'Windows') console.warn('Warning: server.Windows.js is intended for Linux platforms (platform=' + os.platform() + ')');
+if (os.platform() !== 'Windows') console.warn('Warning: server.Windows.js is intended for Windows platforms (platform=' + os.platform() + ')');
 
 const app = express();
 app.use(cors());

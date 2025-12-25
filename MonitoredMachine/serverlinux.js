@@ -5,8 +5,9 @@ const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
 const os = require('os');
+const net = require('net');
 
-const PORT = 3001; // Linux-specific server
+const PORT = 3002; // Linux-specific server
 
 // Warn if not running on linux
 if (os.platform() !== 'linux') console.warn('Warning: server.linux.js is intended for Linux platforms (platform=' + os.platform() + ')');
@@ -114,4 +115,40 @@ app.get('/api/machine', async (req, res) => {
 
 app.get('/health', (req, res) => res.json({status: 'ok', ts: new Date().toISOString()}));
 
-app.listen(PORT, () => console.log(`Linux server listening on port ${PORT} - GET /api/machine`));
+async function isPortFree(port) {
+  return new Promise(resolve => {
+    const tester = net.createServer()
+      .once('error', err => {
+        try { tester.close(); } catch (e) {}
+        if (err && (err.code === 'EADDRINUSE' || err.code === 'EACCES')) resolve(false);
+        else resolve(false);
+      })
+      .once('listening', () => {
+        tester.close();
+        resolve(true);
+      })
+      .listen(port);
+  });
+}
+
+async function choosePort(preferred, maxAttempts = 20) {
+  if (await isPortFree(preferred)) return preferred;
+  for (let i = 0; i < maxAttempts; i++) {
+    const candidate = Math.floor(Math.random() * (65535 - 1025)) + 1025;
+    if (await isPortFree(candidate)) {
+      console.warn(`Port ${preferred} is in use. Selected free port ${candidate}.`);
+      return candidate;
+    }
+  }
+  throw new Error('Unable to find free port after multiple attempts');
+}
+
+(async () => {
+  try {
+    const finalPort = await choosePort(PORT);
+    app.listen(finalPort, () => console.log(`Linux server listening on port ${finalPort} - GET /api/machine`));
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+})();

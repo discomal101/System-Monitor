@@ -19,9 +19,9 @@ except ImportError as e:
 # ---------------- CONFIG ---------------- #
 
 DOWNLOAD_URLS = {
-    "Windows": "https://example.com/windows-file.js",
-    "Linux": "https://example.com/linux-file.js",
-    "Darwin": "https://example.com/mac-file.js",
+    "Windows": "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/serverwindows.js",
+    "Linux": "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/serverlinux.js",
+    "Darwin": "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/servermac.js",
 }
 
 FILE_NAME = "server.js"
@@ -153,15 +153,36 @@ def main():
         print("Node.js is not installed.")
         sys.exit(1)
 
-    script_path = os.path.join(INSTALL_DIR, FILE_NAME)
+    # For Linux, use a dedicated folder named `SystemMonitor` and the linux-specific filename
+    if os_name == "Linux":
+        target_dir = os.path.expanduser("~/SystemMonitor")
+        filename = "serverlinux.js"
+    else:
+        target_dir = INSTALL_DIR
+        filename = FILE_NAME
+
+    script_path = os.path.join(target_dir, filename)
+    os.makedirs(target_dir, exist_ok=True)
     download_file(DOWNLOAD_URLS[os_name], script_path)
 
-    choice = input("Add to startup? (y/n): ").lower().strip()
-    if choice == "y":
+    if os_name == "Linux":
+        print(f"Created directory: {target_dir}")
+        print(f"Downloaded {filename} to {script_path}")
+        print("Adding to startup...")
         add_to_startup(os_name, script_path)
+        # Try to start it now (service/autostart handler may have already started it)
+        try:
+            run_file(script_path)
+        except Exception:
+            pass
+        print("Please restart your machine for the startup changes to take effect.")
+    else:
+        choice = input("Add to startup? (y/n): ").lower().strip()
+        if choice == "y":
+            add_to_startup(os_name, script_path)
 
-    run_file(script_path)
-    print("App started.")
+        run_file(script_path)
+        print("App started.")
 
 if __name__ == "__main__":
     main()
