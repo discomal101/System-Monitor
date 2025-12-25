@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ServerStats Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>ServerStats Dashboard</h1>
+      <p class="subtitle">Monitor your local machines — add by port and view live CPU/memory/temps.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="add-machine">
+      <input id="portInput" placeholder="Port (e.g. 3000)" inputmode="numeric" />
+      <input id="nameInput" placeholder="Optional name (e.g. Laptop)" />
+      <button id="addBtn" class="primary">Add Machine</button>
+    </section>
+
+    <section>
+      <h2>Machines</h2>
+      <div id="machinesGrid" class="machines-grid"></div>
+    </section>
+
+    <footer class="muted"><small>Data is polled from each machine's <code>/api/machine</code> endpoint every few seconds.</small></footer>
+  </main>
+
+  <!-- Chart.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/scripts/main.js"></script>
+</body>
+</html>
