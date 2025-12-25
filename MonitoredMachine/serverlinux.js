@@ -7,7 +7,7 @@ const execAsync = util.promisify(exec);
 const os = require('os');
 const net = require('net');
 
-const PORT = 3002; // Linux-specific server
+const PORT = 3022; // Linux-specific server
 
 // Warn if not running on linux
 if (os.platform() !== 'linux') console.warn('Warning: server.linux.js is intended for Linux platforms (platform=' + os.platform() + ')');

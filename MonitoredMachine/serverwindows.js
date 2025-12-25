@@ -8,7 +8,7 @@ const os = require('os');
 
 const PORT = 3000;
 
-if (os.platform() !== 'Windows') console.warn('Warning: server.Windows.js is intended for Windows platforms (platform=' + os.platform() + ')');
+if (os.platform() !== 'Win32') console.warn('Warning: server.Windows.js is intended for Windows platforms (platform=' + os.platform() + ')');
 
 const app = express();
 app.use(cors());

