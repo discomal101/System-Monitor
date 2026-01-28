@@ -34,7 +34,23 @@ def confirm(prompt):
         else:
             print("Please enter 'yes' or 'no'")
 
-def validate_url(url):
+def get_local_ip():
+    """Get the local IP address"""
+    try:
+        import socket
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        return ip
+    except:
+        return None
+
+def validate_port(port_str):
+    """Validate if port is valid"""
+    try:
+        port = int(port_str)
+        return 1024 <= port <= 65535
+    except:
+        return False
     """Validate if URL is accessible"""
     try:
         response = requests.head(url, timeout=5)
@@ -157,7 +173,7 @@ exec /usr/bin/env node "server.js" >> server.log 2>&1
         print(f"  ✗ Failed to create startup script: {e}")
         return False
 
-def create_systemd_user_service(target_folder, service_name="system-monitor"):
+def create_systemd_user_service(target_folder, port, service_name="system-monitor"):
     """Create and enable a systemd --user service. Returns True on success, False otherwise."""
     user_systemd_dir = os.path.expanduser("~/.config/systemd/user")
     os.makedirs(user_systemd_dir, exist_ok=True)
@@ -176,6 +192,7 @@ ExecStart=/usr/bin/env node {os.path.join(target_folder, 'server.js')}
 Restart=on-failure
 RestartSec=10
 Environment=NODE_ENV=production
+Environment=MONITOR_PORT={port}
 
 [Install]
 WantedBy=default.target
@@ -266,8 +283,26 @@ def main():
             print(f"  ✗ Failed to remove directory: {e}")
             sys.exit(1)
 
-    # Step 3: Check prerequisites
-    print_step(3, "Checking Prerequisites")
+    # Step 3: Configure port
+    print_step(3, "Port Configuration")
+    default_port = 3022
+    while True:
+        port_input = input(f"\nEnter the port for monitoring server\n(or press Enter for default {default_port}): ").strip()
+        
+        if not port_input:
+            port = default_port
+            print(f"  ✓ Using default port: {port}")
+            break
+        
+        if validate_port(port_input):
+            port = int(port_input)
+            print(f"  ✓ Port set to: {port}")
+            break
+        else:
+            print(f"  ✗ Invalid port. Please enter a number between 1024-65535")
+
+    # Step 4: Check prerequisites
+    print_step(4, "Checking Prerequisites")
     if not check_nodejs():
         if not confirm("Node.js is required. Continue anyway?"):
             print("Installation cancelled.")
@@ -305,7 +340,7 @@ def main():
     startup_configured = False
     if choice == '1':
         print("\nSetting up systemd user service...")
-        startup_configured = create_systemd_user_service(target_folder)
+        startup_configured = create_systemd_user_service(target_folder, port)
     elif choice == '2':
         print("\nSetting up cron @reboot job...")
         startup_configured = create_cron_job(target_folder)
@@ -325,7 +360,33 @@ def main():
     
     print(f"\nServer location: {target_folder}")
     print(f"Log file: {os.path.join(target_folder, 'server.log')}")
-    print("\nTo manually start the server:")
+    
+    # Get local IP for connection info
+    local_ip = get_local_ip()
+    print(f"\n" + "=" * 60)
+    print("CONNECTION INFORMATION")
+    print("=" * 60)
+    print(f"\nServer Port: {port}")
+    print(f"\nConnection Methods:")
+    print(f"\n  1. From the SAME device (running dashboard on this machine):")
+    print(f"     Address: localhost:{port}")
+    print(f"     Example: http://localhost:{port}/api/machine")
+    
+    if local_ip:
+        print(f"\n  2. From a DIFFERENT device (running dashboard on another machine):")
+        print(f"     Address: {local_ip}:{port}")
+        print(f"     Example: http://{local_ip}:{port}/api/machine")
+    else:
+        print(f"\n  2. From a DIFFERENT device (running dashboard on another machine):")
+        print(f"     Address: <device-ip>:{port}")
+        print(f"     (Replace <device-ip> with the IP address of this machine)")
+    
+    print(f"\nIn the ServerStats Dashboard, enter:")
+    print(f"  • Port or host:port: localhost:{port}  (if same device)")
+    print(f"  • Port or host:port: {local_ip}:{port}  (if different device)" if local_ip else f"  • Port or host:port: <ip>:{port}  (if different device)")
+    print("=" * 60)
+    
+    print(f"\nTo manually start the server:")
     print(f"  cd {target_folder}")
     print(f"  node server.js")
     
