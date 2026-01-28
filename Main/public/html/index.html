@@ -1,39 +1,130 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ServerStats Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ServerStats Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="../css/styles.css" />
 </head>
 <body>
-  <header class="site-header">
-    <div class="container">
-      <h1>ServerStats Dashboard</h1>
-      <p class="subtitle">Monitor your local machines — add by port and view live CPU/memory/temps.</p>
-    </div>
-  </header>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <i class="bi bi-speedometer2"></i>
+                <span>ServerStats</span>
+            </div>
+            <div class="navbar-actions">
+                <div class="notification-wrapper">
+                    <button id="notificationBell" class="btn-icon" title="View notifications">
+                        <i class="bi bi-bell-fill"></i>
+                        <span class="notification-badge" id="notificationBadge">0</span>
+                    </button>
+                    <div class="notification-panel" id="notificationPanel">
+                        <div class="notification-header">Notifications</div>
+                        <div class="notification-list" id="notificationList"></div>
+                    </div>
+                </div>
+                <button id="darkModeToggle" class="btn-icon" title="Toggle dark mode">
+                    <i class="bi bi-moon-fill"></i>
+                </button>
+                <!-- <button id="refreshBtn" class="btn-icon" title="Refresh data">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button> -->
+            </div>
+        </div>
+    </nav>
 
-  <main class="container">
-    <section class="add-machine">
-      <input id="portInput" placeholder="Port or host:port (e.g. 3000 or 192.168.1.5:3000)" />
-      <input id="nameInput" placeholder="Optional name (e.g. Laptop)" />
-      <button id="addBtn" class="primary">Add Machine</button>
-    </section>
+    <!-- Main Content -->
+    <main class="dashboard">
+        <!-- Header Section -->
+        <div class="dashboard-header">
+            <div class="header-content">
+                <h1>Server Dashboard</h1>
+                <p class="subtitle">Monitor your local machines in real-time</p>
+            </div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Active Servers</span>
+                    <span class="stat-value" id="activeCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Last Updated</span>
+                    <span class="stat-value" id="lastUpdated">--:--</span>
+                </div>
+            </div>
+        </div>
 
-    <section>
-      <h2>Machines</h2>
-      <div id="machinesGrid" class="machines-grid"></div>
-    </section>
+        <!-- Add Machine Section -->
+        <section class="add-machine-section">
+            <div class="add-machine-card">
+                <h2><i class="bi bi-plus-circle"></i> Add New Server</h2>
+                <div class="form-group">
+                    <div class="input-wrapper">
+                        <i class="bi bi-hdd-network"></i>
+                        <input 
+                            id="portInput" 
+                            type="text"
+                            placeholder="Port or host:port (e.g., 3000 or 192.168.1.5:3000)" 
+                            class="form-input"
+                        />
+                    </div>
+                    <div class="input-wrapper">
+                        <i class="bi bi-tag"></i>
+                        <input 
+                            id="nameInput" 
+                            type="text"
+                            placeholder="Server name (e.g., Main Server)" 
+                            class="form-input"
+                        />
+                    </div>
+                    <button id="addBtn" class="btn btn-primary">
+                        <i class="bi bi-plus"></i> Add Server
+                    </button>
+                </div>
+            </div>
+        </section>
 
-    <footer class="muted"><small>Data is polled from each machine's <code>/api/machine</code> endpoint every few seconds.</small></footer>
-  </main>
+        <!-- Filters Section -->
+        <section class="filters-section">
+            <div class="filter-group">
+                <input 
+                    id="searchInput" 
+                    type="text" 
+                    placeholder="Search servers..." 
+                    class="filter-input"
+                />
+                <select id="sortSelect" class="filter-select">
+                    <option value="name">Sort by: Name</option>
+                    <option value="cpu">Sort by: CPU Usage</option>
+                    <option value="memory">Sort by: Memory Usage</option>
+                    <option value="added">Sort by: Recently Added</option>
+                </select>
+            </div>
+        </section>
 
-  <!-- Chart.js from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/scripts/main.js"></script>
+        <!-- Machines Grid -->
+        <section class="machines-section">
+            <div id="machinesGrid" class="machines-grid"></div>
+            <div id="emptyState" class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>No servers added yet</p>
+                <small>Add a server above to get started</small>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <small>📡 Data is polled from each server's <code>/api/machine</code> endpoint</small>
+        </footer>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="../scripts/main.js"></script>
 </body>
 </html>

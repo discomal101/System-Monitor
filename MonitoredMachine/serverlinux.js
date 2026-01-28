@@ -6,8 +6,10 @@ const util = require('util');
 const execAsync = util.promisify(exec);
 const os = require('os');
 const net = require('net');
+const fs = require('fs');
+const path = require('path');
 
-const PORT = 3022; // Linux-specific server
+const PORT = process.env.MONITOR_PORT || 3022;
 
 // Warn if not running on linux
 if (os.platform() !== 'linux') console.warn('Warning: server.linux.js is intended for Linux platforms (platform=' + os.platform() + ')');
@@ -16,10 +18,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Helper: Get GPU temperature from AMD (amdgpu)
+async function getAmdGpuTemperature() {
+    try {
+        const cmd = "grep -r 'temp' /sys/class/drm/card*/device/hwmon/hwmon*/temp* 2>/dev/null | head -1 | awk -F':' '{print $2}' | head -c 2";
+        const { stdout } = await execAsync(cmd, { timeout: 2000, shell: '/bin/bash' });
+        const temp = parseInt(stdout.trim());
+        return !isNaN(temp) && temp > 0 ? temp / 1000 : null;
+    } catch (e) {
+        return null;
+    }
+}
+
 // Helper: best-effort Nvidia GPU summary (Linux)
 async function getNvidiaSummary(){
     try{
-        const cmd = 'nvidia-smi --query-gpu=index,name,temperature.gpu,memory.total,memory.used --format=csv,noheader,nounits';
+        const cmd = 'nvidia-smi --query-gpu=index,name,temperature.gpu,memory.total,memory.used,memory.free --format=csv,noheader,nounits';
         const { stdout } = await execAsync(cmd, { timeout: 3000 });
         if (!stdout) return null;
         const lines = stdout.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -30,7 +44,8 @@ async function getNvidiaSummary(){
                 name: parts[1],
                 temperatureC: parts[2] ? Number(parts[2]) : null,
                 memoryTotalMB: parts[3] ? Number(parts[3]) : null,
-                memoryUsedMB: parts[4] ? Number(parts[4]) : null
+                memoryUsedMB: parts[4] ? Number(parts[4]) : null,
+                memoryFreeMB: parts[5] ? Number(parts[5]) : null
             };
         });
         return gpus;
@@ -39,9 +54,29 @@ async function getNvidiaSummary(){
     }
 }
 
+// Helper: Get CPU detailed info
+async function getCpuDetailedInfo() {
+    try {
+        const cpuInfo = await si.cpu();
+        return {
+            manufacturer: cpuInfo.manufacturer || null,
+            brand: cpuInfo.brand || null,
+            cores: cpuInfo.cores || null,
+            threads: cpuInfo.threads || null,
+            speed: cpuInfo.speed || null,
+            speedMin: cpuInfo.speedmin || null,
+            speedMax: cpuInfo.speedmax || null
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+// tbh this is all ai as i didnt have much time and just wanted something working quickly
+// please make it better if you find any issues or improvements
 app.get('/api/machine', async (req, res) => {
     try {
-        const [load, mem, cpuTemp, fsSize, graphics, osInfo, systemInfo, netifs] = await Promise.all([
+        const [load, mem, cpuTemp, fsSize, graphics, osInfo, systemInfo, netifs, processes] = await Promise.all([
             si.currentLoad(),
             si.mem(),
             si.cpuTemperature(),
@@ -49,7 +84,8 @@ app.get('/api/machine', async (req, res) => {
             si.graphics(),
             si.osInfo(),
             si.system(),
-            si.networkInterfaces()
+            si.networkInterfaces(),
+            si.processes().catch(() => null)
         ]);
 
         function toMB(bytes){
@@ -57,23 +93,46 @@ app.get('/api/machine', async (req, res) => {
         }
 
         // disks array
-        const disks = (fsSize || []).map(d => ({ fs: d.fs, type: d.type, size: d.size, used: d.used, use: d.use }));
+        const disks = (fsSize || []).map(d => ({ 
+            fs: d.fs, 
+            type: d.type, 
+            size: d.size, 
+            used: d.used, 
+            use: d.use,
+            mount: d.mount 
+        }));
         const totalDiskSize = disks.reduce((s, d) => s + (d.size || 0), 0);
         const totalDiskUsed = disks.reduce((s, d) => s + (d.used || 0), 0);
         const aggregatedDiskUse = totalDiskSize ? Math.round((totalDiskUsed / totalDiskSize) * 100) : null;
 
-        // pick primary mac address
+        // pick primary mac address (prefer non-loopback)
         const mac = (netifs || []).find(n => n && !n.internal && n.mac && n.mac !== '00:00:00:00:00:00');
         const macAddress = mac ? mac.mac : ((netifs && netifs[0] && netifs[0].mac) || null);
 
         const memoryUsedMB = toMB(mem.used);
         const memoryTotalMB = toMB(mem.total);
         const memoryUsedPercent = mem.total ? Math.round((mem.used / mem.total) * 10000) / 100 : null;
+        const memoryFreeMB = toMB(mem.free);
 
         // Linux-specific fields
         const uptimeSeconds = os.uptime();
-        const kernel = osInfo.kernel || os.release;
+        const kernel = osInfo.kernel || os.release();
         const nvidia = await getNvidiaSummary();
+        const amdGpuTemp = await getAmdGpuTemperature();
+        const cpuDetailed = await getCpuDetailedInfo();
+
+        // Get process count
+        const processCount = processes ? processes.all : null;
+
+        // Get GPU temperature (Nvidia or AMD)
+        let gpuTemperature = null;
+        if (nvidia && nvidia[0]) {
+            gpuTemperature = nvidia[0].temperatureC;
+        } else if (amdGpuTemp) {
+            gpuTemperature = amdGpuTemp;
+        } else if (graphics && graphics.controllers && graphics.controllers.length) {
+            gpuTemperature = graphics.controllers[0].temperatureGpu ?? graphics.controllers[0].temperature ?? null;
+        }
 
         const data = {
             timestamp: new Date().toISOString(),
@@ -82,9 +141,11 @@ app.get('/api/machine', async (req, res) => {
             operatingSystem: `${osInfo.distro || osInfo.platform || ''} ${osInfo.release || ''}`.trim(),
             kernel: kernel || null,
             uptimeSeconds,
-            hardware: `${systemInfo.manufacturer || ''} ${systemInfo.model || ''}`.trim(),
+            hardware: `${systemInfo.manufacturer || ''} ${systemInfo.model || ''}`.trim() || 'Unknown',
+            cpu: cpuDetailed,
             memoryUsage: {
                 usedMB: memoryUsedMB,
+                freeMB: memoryFreeMB,
                 totalMB: memoryTotalMB,
                 usedPercent: memoryUsedPercent,
                 display: `${memoryUsedMB} / ${memoryTotalMB} MB`
@@ -99,11 +160,20 @@ app.get('/api/machine', async (req, res) => {
             cpuUsage: {
                 currentLoad: load.currentLoad ?? null,
                 avgLoad: load.avgload ?? null,
-                cores: load.cpus ? load.cpus.map((c, i) => ({ core: i, load: c.load })) : undefined
+                cores: load.cpus ? load.cpus.map((c, i) => ({ core: i, load: c.load })) : []
             },
             cpuTemperature: cpuTemp.main ?? null,
-            gpuTemperature: (graphics && graphics.controllers && graphics.controllers.length) ? (graphics.controllers[0].temperatureGpu ?? graphics.controllers[0].temperature ?? null) : null,
-            nvidiaSummary: nvidia
+            gpuTemperature: gpuTemperature,
+            nvidiaSummary: nvidia,
+            amdGpuTemperature: amdGpuTemp,
+            processCount: processCount,
+            networkInterfaces: netifs ? netifs.map(n => ({
+                ifname: n.ifname,
+                address: n.address,
+                netmask: n.netmask,
+                mac: n.mac,
+                internal: n.internal
+            })) : []
         };
 
         res.json(data);
