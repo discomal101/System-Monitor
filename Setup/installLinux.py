@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 System Monitor Linux Installer
-Downloads and configures the monitoring server to run at startup
+Downloads and configures the monitoring server to run at startup for the program
 """
 
 import os
