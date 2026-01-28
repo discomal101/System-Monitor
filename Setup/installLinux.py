@@ -51,6 +51,8 @@ def validate_port(port_str):
         return 1024 <= port <= 65535
     except:
         return False
+
+def validate_url(url):
     """Validate if URL is accessible"""
     try:
         response = requests.head(url, timeout=5)
@@ -308,15 +310,15 @@ def main():
             print("Installation cancelled.")
             sys.exit(0)
 
-    # Step 4: Download server
-    print_step(4, "Downloading Server File")
+    # Step 5: Download server
+    print_step(5, "Downloading Server File")
     downloaded = download_file(download_url, target_folder, "server.js")
     if not downloaded:
         print("\nDownload failed. Installation cancelled.")
         sys.exit(1)
 
-    # Step 5: Setup npm dependencies
-    print_step(5, "Setting Up Dependencies")
+    # Step 6: Setup npm dependencies
+    print_step(6, "Setting Up Dependencies")
     create_package_json(target_folder)
     required_packages = ['express', 'cors', 'systeminformation']
     if not install_npm_packages(target_folder, required_packages):
@@ -324,12 +326,12 @@ def main():
             print("Installation cancelled.")
             sys.exit(0)
 
-    # Step 6: Create startup script
-    print_step(6, "Creating Startup Script")
+    # Step 7: Create startup script
+    print_step(7, "Creating Startup Script")
     create_shell(target_folder)
 
-    # Step 7: Configure startup
-    print_step(7, "Configuring Startup")
+    # Step 8: Configure startup
+    print_step(8, "Configuring Startup")
     print("\nChoose how to run the server at startup:")
     print("  1) systemd user service (recommended)")
     print("  2) cron @reboot job")
