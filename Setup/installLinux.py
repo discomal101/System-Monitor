@@ -253,9 +253,7 @@ def main():
     # Step 1: Get download URL
     print_step(1, "Download Configuration")
     while True:
-        download_url = input("\nEnter the download URL for server.js\n(or press Enter for default): ").strip()
-        if not download_url:
-            download_url = "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/serverlinux.js"
+        download_url = "https://raw.githubusercontent.com/discomal101/System-Monitor/refs/heads/main/MonitoredMachine/serverlinux.js"
         
         print(f"\nValidating URL: {download_url}")
         if validate_url(download_url):
